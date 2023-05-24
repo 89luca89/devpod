@@ -159,21 +159,9 @@ jobs:
         if: matrix.settings.host != 'windows-latest'
         run: |
           BIN_NAME=devpod-cli-${{ matrix.settings.target }}
-          GOOS=${{ matrix.settings.os }} GOARCH=${{ matrix.settings.arch }} CGO_ENABLED=0 go build -ldflags "-s -w -X github.com/loft-sh/devpod/pkg/version.version="v${{ needs.create-release.outputs.package_version }}" -X github.com/loft-sh/devpod/pkg/telemetry.telemetryPrivateKey=${{ secrets.DEVPOD_TELEMETRY_PRIVATE_KEY }}" -o "test/$BIN_NAME"
+          GOOS=${{ matrix.settings.os }} GOARCH=${{ matrix.settings.arch }} CGO_ENABLED=0 go build -ldflags "-s -w -X github.com/loft-sh/devpod/pkg/version.version="v${{ needs.create-release.outputs.package_version }}" -o "test/$BIN_NAME"
           cp "test/$BIN_NAME" "desktop/src-tauri/bin/$BIN_NAME"
           ls desktop/src-tauri/bin
-
-      - name: Build Sidecar CLI
-        if: matrix.settings.host == 'windows-latest'
-        shell: cmd
-        run: |
-          set GOOS=windows
-          set GOARCH=${{ matrix.settings.arch }}
-          set BIN_NAME=devpod-cli-${{ matrix.settings.target }}.exe
-
-          go build -ldflags "-s -w -X github.com/loft-sh/devpod/pkg/version.version="v${{ needs.create-release.outputs.package_version }}" -X github.com/loft-sh/devpod/pkg/telemetry.telemetryPrivateKey=${{ secrets.DEVPOD_TELEMETRY_PRIVATE_KEY }}" -o "test\%BIN_NAME%"
-
-          xcopy /F /Y "test\%BIN_NAME%" desktop\src-tauri\bin\*
 
       - name: Sync node version and setup cache
         uses: actions/setup-node@v3
@@ -196,34 +184,6 @@ jobs:
           projectPath: "./desktop"
           args: "--config src-tauri/tauri-linux.conf.json --target ${{ matrix.settings.target }}"
           includeUpdaterJson: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          # AppImage Signing:
-          SIGN: ${{ secrets.APP_IMAGE_SIGN }}
-          SIGN_KEY: ${{ secrets.APP_IMAGE_SIGN_KEY }}
-          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.APP_IMAGE_SIGN_PASSPHRASE }}
-
-      - name: Build Desktop App
-        if: matrix.settings.host == 'macos-latest' && matrix.settings.cli_only == false
-        uses: tauri-apps/tauri-action@v0.4.0
-        with:
-          releaseId: ${{ needs.create-release.outputs.release_id }}
-          projectPath: "./desktop"
-          args: "--target ${{ matrix.settings.target }}"
-          includeUpdaterJson: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          # MacOS Signing:
-          ENABLE_CODE_SIGNING: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
 
       - name: Build RPM
         if: matrix.settings.host == 'ubuntu-latest' && matrix.settings.cli_only == false
@@ -235,10 +195,10 @@ jobs:
           sudo apt-get install -y alien rpm
           # Cleanup
           rm -rf "dev-pod-${{needs.create-release.outputs.package_version}}"
-          rm -f "dev-pod-${{needs.create-release.outputs.package_version}}-2.x86_64.rpm"
+          rm -f "*.rpm"
 
           # Convert deb to rpm
-          alien -r -g -v "dev-pod_${{needs.create-release.outputs.package_version}}_amd64.deb"
+          alien -r -g -k -v "dev-pod_${{needs.create-release.outputs.package_version}}_amd64.deb"
 
           DEPENDENCIES="
             libappindicator-gtk3
@@ -249,286 +209,21 @@ jobs:
             libdeflate
             gtk3-immodules
           "
-
+          rpm_version="$(echo ${{needs.create-release.outputs.package_version}} | cut -d'-' -f1)"
+          # Rename spec file
+          ls -l
+          mv dev-pod-${rpm_version}/dev-pod-${{needs.create-release.outputs.package_version}}-*.spec dev-pod-${rpm_version}/dev-pod-${rpm_version}.spec
           # Inject missing dependencies
           for dependency in ${DEPENDENCIES}; do
-            sed -i "s|Group: Converted/unknown|Group: Converted/unknown\nRequires: ${dependency}|g" "dev-pod-${{needs.create-release.outputs.package_version}}/dev-pod-${{needs.create-release.outputs.package_version}}-2.spec"
+            sed -i "s|Group: Converted/unknown|Group: Converted/unknown\nRequires: ${dependency}|g" "dev-pod-${rpm_version}/dev-pod-${rpm_version}.spec"
           done
 
           # Remove unwanted dirs
-          sed -i 's|^"/usr"$||g' "dev-pod-${{needs.create-release.outputs.package_version}}/dev-pod-${{needs.create-release.outputs.package_version}}-2.spec"
-          sed -i 's|^"/usr/bin"$||g' "dev-pod-${{needs.create-release.outputs.package_version}}/dev-pod-${{needs.create-release.outputs.package_version}}-2.spec"
+          sed -i 's|^"/usr"$||g' "dev-pod-${rpm_version}/dev-pod-${rpm_version}.spec"
+          sed -i 's|^"/usr/bin"$||g' "dev-pod-${rpm_version}/dev-pod-${rpm_version}.spec"
 
-          cd "dev-pod-${{needs.create-release.outputs.package_version}}" || exit 1
-          rpmbuild --target=x86_64 --buildroot "$(pwd)" -bb "$(pwd)/dev-pod-${{needs.create-release.outputs.package_version}}-2.spec"
+          cd "dev-pod-${rpm_version}" || exit 1
+          rpmbuild --target=x86_64 --buildroot "$(pwd)" -bb "$(pwd)/dev-pod-${rpm_version}.spec"
 
-      - name: Build Desktop App
-        if: matrix.settings.host == 'windows-latest' && matrix.settings.cli_only == false
-        id: build-desktop-app
-        uses: tauri-apps/tauri-action@v0.4.0
-        with:
-          projectPath: "./desktop"
-          args: " --target ${{ matrix.settings.target }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-
-      - name: Sign Windows App
-        if: matrix.settings.host == 'windows-latest'
-        shell: powershell
-        env:
-          CODESIGNTOOL_USERNAME: ${{ secrets.CODESIGNTOOL_USERNAME }}
-          CODESIGNTOOL_PASSWORD: ${{ secrets.CODESIGNTOOL_PASSWORD }}
-          CODESIGNTOOL_TOTP_SECRET: ${{ secrets.CODESIGNTOOL_TOTP_SECRET }}
-          CODESIGNTOOL_CREDENTIAL_ID: ${{ secrets.CODESIGNTOOL_CREDENTIAL_ID }}
-          CODESIGNTOOL_DOWNLOAD_URL: ${{ vars.CODESIGNTOOL_DOWNLOAD_URL }}
-          CODESIGNTOOL_FILE_PATH: desktop\src-tauri\target\${{ matrix.settings.target }}\release\bundle\msi\DevPod_${{ needs.create-release.outputs.package_version }}_x64_en-US.msi
-        run: |
-          $username = "$Env:CODESIGNTOOL_USERNAME"
-          $password = "$Env:CODESIGNTOOL_PASSWORD"
-          $totp_secret = "$Env:CODESIGNTOOL_TOTP_SECRET"
-          $credential_id = "$Env:CODESIGNTOOL_CREDENTIAL_ID"
-          $download_url = "$Env:CODESIGNTOOL_DOWNLOAD_URL"
-          $input_file_path = "$Env:CODESIGNTOOL_FILE_PATH"
-
-          Write-Output "Starting to download CodeSignTool from $download_url"
-
-          Invoke-WebRequest -Uri $download_url -OutFile codesigntool.zip
-
-          $destination_path = "codesigntool"
-          Write-Output "Unzipping to $destination_path"
-          Expand-Archive "codesigntool.zip" -DestinationPath $destination_path 
-
-          Set-Location -Path $destination_path
-          Set-Location -Path (Get-ChildItem -Path . -Include CodeSignTool* | %{$_.FullName})
-
-          cmd.exe /c ".\CodeSignTool.bat" sign -username="$username" -password="$password" -totp_secret="$totp_secret" -credential_id="$credential_id" -input_file_path="..\..\$input_file_path" -override
-
-      - name: Upload Release Asset
-        if: matrix.settings.host == 'windows-latest'
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require("fs")
-
-            const msiName = "DevPod_${{ needs.create-release.outputs.package_version }}_x64_en-US.msi"
-            const msiPath = `desktop/src-tauri/target/${{ matrix.settings.target }}/release/bundle/msi/${msiName}`
-            const msiZipName = `${msiName}.zip`
-            const msiZipPath = `desktop/src-tauri/target/${{ matrix.settings.target }}/release/bundle/msi/${msiZipName}`
-            const msiZipSigName = `${msiName}.zip.sig`
-            const msiZipSigPath = `desktop/src-tauri/target/${{ matrix.settings.target }}/release/bundle/msi/${msiZipSigName}`
-            const cliName = "devpod-windows-${{ matrix.settings.arch }}.exe"
-            const cliPath = "desktop/src-tauri/bin/devpod-cli-${{ matrix.settings.target }}.exe"
-
-            const releaseId = "${{ needs.create-release.outputs.release_id }}"
-
-            const releaseAssets = [{ name: msiName, path: msiPath }, { name: cliName, path: cliPath }, { name: msiZipName, path: msiZipPath }, { name: msiZipSigName, path: msiZipSigPath }]
-            for (const asset of releaseAssets) {
-              console.log("Attempting to upload release asset: ", asset)
-              await github.rest.repos.uploadReleaseAsset({
-                headers: {
-                  "content-type": "application/zip",
-                  "content-length": fs.statSync(asset.path).size
-                },
-                name: asset.name,
-                data: fs.readFileSync(asset.path),
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: releaseId
-              })
-            }
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload CLI Asset
-        if: matrix.settings.host != 'windows-latest'
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require("fs")
-
-            const releaseId = "${{ needs.create-release.outputs.release_id }}"
-            const assetName = "devpod-${{ matrix.settings.os }}-${{ matrix.settings.arch }}"
-            const assetPath = "desktop/src-tauri/bin/devpod-cli-${{ matrix.settings.target }}"
-
-            console.log("Attempting to upload release asset: ", assetName)
-
-            await github.rest.repos.uploadReleaseAsset({
-              headers: {
-                "content-type": "application/zip",
-                "content-length": fs.statSync(assetPath).size
-              },
-              name: assetName,
-              data: fs.readFileSync(assetPath),
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: releaseId
-            })
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload RPM Asset
-        if: matrix.settings.host == 'ubuntu-latest' && matrix.settings.cli_only == false
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require("fs")
-
-            const releaseId = "${{ needs.create-release.outputs.release_id }}"
-            const assetName = "dev-pod-${{needs.create-release.outputs.package_version}}-2.x86_64.rpm"
-            const assetPath = `desktop/src-tauri/target/${{ matrix.settings.target }}/release/bundle/deb/${assetName}`
-
-            console.log("Attempting to upload release asset: ", assetName)
-
-            await github.rest.repos.uploadReleaseAsset({
-              headers: {
-                "content-type": "application/zip",
-                "content-length": fs.statSync(assetPath).size
-              },
-              name: assetName,
-              data: fs.readFileSync(assetPath),
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: releaseId
-            })
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  publish-updates:
-    needs: [build-app, create-release]
-    if: startsWith(github.ref, 'refs/tags/v') == true
-    permissions:
-      contents: write
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Update `latest.json`
-        uses: actions/github-script@v6
-        with:
-          retries: 2
-          retry-exempt-status-codes: 400,401,403
-          script: |
-            // At this point, we should have `linux-x86_64`, `darwin-aarch64` and `darwin-x86_64`.
-            // We need to add the missing platform/arch combinations by hand
-            const fs = require("fs")
-
-            async function fetchAsset(assetID) {
-              const releaseAsset = await github.rest.repos.getReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                asset_id: assetID,
-                headers: { accept: "application/octet-stream" }
-              })
-              const res = await fetch(releaseAsset.url, { headers: { accept: "application/octet-stream" } })
-              if (!res.ok) { core.setFailed(`${await res.text()}`) }
-
-              return res
-            }
-
-            const releaseId = "${{ needs.create-release.outputs.release_id }}"
-            const releaseArgs = { owner: context.repo.owner, repo: context.repo.repo, release_id: releaseId }
-            const release = await github.rest.repos.getRelease({ ...releaseArgs })
-
-            const latestAsset = release.data.assets.find(a => a.name === "latest.json")
-            core.info(`Downloading ${latestAsset.name} (ID: ${latestAsset.id})`)
-            const latestRes = await fetchAsset(latestAsset.id)
-            const latest = await latestRes.json()
-
-            const infos = [
-              { target: "linux-x86_64", sigFile: ".AppImage.tar.gz.sig", packageType: ".tar.gz", originalAssetName: `dev-pod_${latest.version}_amd64.AppImage`, desiredAssetName: "DevPod_linux_amd64.AppImage" },
-              { target: "darwin-aarch64", sigFile: "aarch64.app.tar.gz.sig", packageType: ".tar.gz", originalAssetName: `DevPod_${latest.version}_aarch64.dmg`, desiredAssetName: "DevPod_macos_aarch64.dmg", originalUpdaterAssetName: "DevPod_aarch64.app.tar.gz", desiredUpdaterAssetName: "DevPod_macos_aarch64.app.tar.gz" },
-              { target: "darwin-x86_64", sigFile: "x64.app.tar.gz.sig", packageType: ".tar.gz", originalAssetName: `DevPod_${latest.version}_x64.dmg`, desiredAssetName: "DevPod_macos_x64.dmg", originalUpdaterAssetName: "DevPod_x64.app.tar.gz", desiredUpdaterAssetName: "DevPod_macos_x64.app.tar.gz" },
-              { target: "windows-x86_64", sigFile: ".msi.zip.sig", packageType: ".zip", originalAssetName: `DevPod_${latest.version}_x64_en-US.msi`, desiredAssetName: "DevPod_windows_x64_en-US.msi" },
-              { originalAssetName: `dev-pod-${latest.version}-2.x86_64.rpm`, desiredAssetName: "DevPod_linux_x86_64.rpm" },
-              { originalAssetName: `dev-pod_${latest.version}_amd64.deb`, desiredAssetName: "DevPod_linux_amd64.deb" },
-            ]
-
-            for (const info of infos) {
-              // Update latest.json for platform
-              if (info.target) {
-                core.info(`Generating update info for ${info.desiredAssetName}`)
-                const sigAsset = release.data.assets.find(a => a.name.endsWith(info.sigFile))
-                if (!sigAsset) {
-                  core.warning(`Unable to find sig asset: ${info.sigFile}`)
-                  continue
-                }
-                core.info(`Downloading ${sigAsset.name} (ID: ${sigAsset.id})`)
-                const sig = await fetchAsset(sigAsset.id)
-                
-                let assetName = `${info.desiredAssetName}${info.packageType}`
-                if (info.desiredUpdaterAssetName) {
-                  assetName = info.desiredUpdaterAssetName
-                }
-
-                latest.platforms[info.target] = {
-                  signature: await sig.text(),
-                  url: `https://github.com/loft-sh/devpod/releases/download/${process.env.GITHUB_REF_NAME}/${assetName}`,
-                }
-              }
-
-              const a = release.data.assets.find(a => a.name === info.originalAssetName)
-              if (!a) {
-                core.warning(`Unable to find asset: ${info.originalAssetName}`)
-                continue
-              }
-              
-              const assetID = a.id
-              // Update the asset name
-              await github.rest.repos.updateReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                asset_id: assetID,
-                name: info.desiredAssetName
-              })
-
-              if (info.packageType) {
-                let name = `${info.originalAssetName}${info.packageType}`
-                if (info.originalUpdaterAssetName) {
-                  name = info.originalUpdaterAssetName
-                }
-                const b = release.data.assets.find(a => a.name === name)
-                if (!b) {
-                  core.warning(`Unable to find update asset: ${name}`)
-                  continue
-                }
-                let desiredName = `${info.desiredAssetName}${info.packageType}`
-                if (info.desiredUpdaterAssetName) {
-                  desiredName = info.desiredUpdaterAssetName
-                }
-                const assetID = b.id
-                // Update the asset name
-                await github.rest.repos.updateReleaseAsset({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  asset_id: assetID,
-                  name: desiredName
-                })
-              }
-            }
-
-            const latestJSON = JSON.stringify(latest)
-            const latestDestPath = "desktop/latest.json"
-            core.info(`Writing latest.json to disk (${latestDestPath}): ${latestJSON}`)
-
-            fs.writeFileSync(latestDestPath, latestJSON)
-
-            // Attempting to upload a previously released asset results in an error so we need to clean up before
-            if (latestAsset) {
-              await github.rest.repos.deleteReleaseAsset({
-                ...releaseArgs,
-                asset_id: latestAsset.id
-              })
-            }
-
-            await github.rest.repos.uploadReleaseAsset({
-              ...releaseArgs,
-              headers: {
-                "content-type": "application/zip",
-                "content-length": fs.statSync(latestDestPath).size
-              },
-              name: "latest.json",
-              data: fs.readFileSync(latestDestPath),
-            })
+          cd -
+          mv dev-pod-${{needs.create-release.outputs.package_version}}-*.x86_64.rpm dev-pod-${{needs.create-release.outputs.package_version}}.x86_64.rpm
