@@ -157,7 +157,7 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           projectPath: "./desktop"
-          args: "--config src-tauri/tauri-dev.conf.json --config src-tauri/tauri-linux.conf.json --target ${{ matrix.settings.target }}"
+          args: "--config src-tauri/tauri-dev.conf.json --target ${{ matrix.settings.target }}"
 
       - name: Build RPM
         if: matrix.settings.host == 'ubuntu-latest' && matrix.settings.cli_only == false
@@ -184,9 +184,12 @@ jobs:
             gtk3-immodules
           "
           rpm_version="$(echo ${{needs.create-release.outputs.package_version}} | cut -d'-' -f1)"
+
           # Rename spec file
           ls -l
-          mv dev-pod-${rpm_version}/dev-pod-${{needs.create-release.outputs.package_version}}-*.spec dev-pod-${rpm_version}/dev-pod-${rpm_version}.spec
+          ls -l dev-pod-${rpm_version}
+
+          mv dev-pod-${rpm_version}/dev-pod-${{needs.create-release.outputs.package_version}}*.spec dev-pod-${rpm_version}/dev-pod-${rpm_version}.spec
           # Inject missing dependencies
           for dependency in ${DEPENDENCIES}; do
             sed -i "s|Group: Converted/unknown|Group: Converted/unknown\nRequires: ${dependency}|g" "dev-pod-${rpm_version}/dev-pod-${rpm_version}.spec"
