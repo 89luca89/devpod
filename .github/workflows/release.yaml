@@ -205,4 +205,6 @@ jobs:
           rpmbuild --target=x86_64 --buildroot "$(pwd)" -bb "$(pwd)/dev-pod-${rpm_version}.spec"
 
           cd -
-          mv dev-pod-${{needs.create-release.outputs.package_version}}*.x86_64.rpm dev-pod-${{needs.create-release.outputs.package_version}}.x86_64.rpm
+          if [ ! -e dev-pod-${{needs.create-release.outputs.package_version}}.x86_64.rpm ]; then
+            mv dev-pod-${{needs.create-release.outputs.package_version}}*.x86_64.rpm dev-pod-${{needs.create-release.outputs.package_version}}.x86_64.rpm
+          fi
