@@ -88,26 +88,6 @@ jobs:
       fail-fast: false
       matrix:
         settings:
-          - host: macos-latest
-            target: x86_64-apple-darwin
-            os: darwin
-            arch: amd64
-            cli_only: false
-          - host: macos-latest
-            target: aarch64-apple-darwin
-            os: darwin
-            arch: arm64
-            cli_only: false
-          # The WIX version we use for the installer (latest 3.something) doesn't support arm builds - if we need to support arm windows,
-          # we'd need to switch the installer toolchain to WIX 4.xx, not sure how that works out with tauri
-          # - host: windows-latest
-          #   target: aarch64-pc-windows-msvc
-          #   arch: arm64
-          #   cli-only: false
-          - host: windows-latest
-            target: x86_64-pc-windows-msvc
-            arch: amd64
-            cli_only: false
           - host: ubuntu-20.04
             target: x86_64-unknown-linux-gnu
             os: linux
@@ -200,16 +180,16 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           projectPath: "./desktop"
-          args: "--config src-tauri/tauri-linux.conf.json --target ${{ matrix.settings.target }} --features enable-updater"
+          args: "--config src-tauri/tauri-dev-linux.conf.json --target ${{ matrix.settings.target }} --features enable-updater"
           includeUpdaterJson: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          # AppImage Signing:
-          SIGN: ${{ secrets.APP_IMAGE_SIGN }}
-          SIGN_KEY: ${{ secrets.APP_IMAGE_SIGN_KEY }}
-          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.APP_IMAGE_SIGN_PASSPHRASE }}
+            # TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+            # TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+            # # AppImage Signing:
+            # SIGN: ${{ secrets.APP_IMAGE_SIGN }}
+            # SIGN_KEY: ${{ secrets.APP_IMAGE_SIGN_KEY }}
+            # APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.APP_IMAGE_SIGN_PASSPHRASE }}
 
       - name: Build Desktop App
         if: matrix.settings.host == 'macos-latest' && matrix.settings.cli_only == false
@@ -238,7 +218,7 @@ jobs:
           cd ./desktop/src-tauri/target/${{ matrix.settings.target }}/release/bundle/appimage/dev-pod.AppDir || exit 1
           tar --exclude=usr/lib --exclude=usr/share/doc -zcvf dev-pod-desktop.tar.gz usr
 
-          mv dev-pod-desktop.tar.gz ../../dev-pod-${{needs.create-release.outputs.package_version}}.tar.gz"
+          mv dev-pod-desktop.tar.gz ../../dev-pod-${{needs.create-release.outputs.package_version}}.tar.gz
 
 
       - name: Build Desktop App
