@@ -184,12 +184,12 @@ jobs:
           includeUpdaterJson: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          # AppImage Signing:
-          SIGN: ${{ secrets.APP_IMAGE_SIGN }}
-          SIGN_KEY: ${{ secrets.APP_IMAGE_SIGN_KEY }}
-          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.APP_IMAGE_SIGN_PASSPHRASE }}
+            # TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+            # TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+            # # AppImage Signing:
+            # SIGN: ${{ secrets.APP_IMAGE_SIGN }}
+            # SIGN_KEY: ${{ secrets.APP_IMAGE_SIGN_KEY }}
+            # APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.APP_IMAGE_SIGN_PASSPHRASE }}
 
       - name: Build Desktop App
         if: matrix.settings.host == 'macos-latest' && matrix.settings.cli_only == false
