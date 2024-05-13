@@ -256,7 +256,7 @@ jobs:
 
       - name: Build linux tar.gz (glibc old)
         if: matrix.settings.host == 'ubuntu-20.04' && matrix.settings.cli_only == false
-        id: build-desktop-targz
+        id: build-desktop-targz-glibc-old
         run: |
           cd ./desktop/src-tauri/target/${{ matrix.settings.target }}/release/bundle/appimage/dev-pod.AppDir || exit 1
           tar --exclude=usr/bin/xdg-open --exclude=usr/lib --exclude=usr/share/doc --exclude=usr/share/glib-2.0 -zcvf dev-pod-desktop.tar.gz usr
@@ -265,7 +265,7 @@ jobs:
 
       - name: Build linux tar.gz (glibc new)
         if: matrix.settings.host == 'ubuntu-22.04' && matrix.settings.cli_only == false
-        id: build-desktop-targz
+        id: build-desktop-targz-glibc-new
         run: |
           cd ./desktop/src-tauri/target/${{ matrix.settings.target }}/release/bundle/appimage/dev-pod.AppDir || exit 1
           tar --exclude=usr/bin/xdg-open --exclude=usr/lib --exclude=usr/share/doc --exclude=usr/share/glib-2.0 -zcvf dev-pod-desktop.tar.gz usr
